@@ -1,0 +1,12 @@
+[project]
+name = "odin-reader"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "pymupdf>=1.26.5",
+    "pymupdf4llm>=0.0.27",
+    "pypdf>=6.1.1",
+    "torch>=2.9.0",
+]
