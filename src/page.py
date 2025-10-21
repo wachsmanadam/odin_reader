@@ -140,7 +140,7 @@ class CharacterizedLine:
 class WegItem:
     CLIP = [0, 36, 800, 760]
     def __init__(self, doc:pymupdf.Document, start_index:int, stop_index:int = None):
-        stop_index = stop_index if stop_index is not None else doc.page_count - 1
+        stop_index = stop_index if stop_index is not None else doc.page_count
         self.pages = doc[start_index:stop_index]
         self._all_extract_text = [p.get_textpage(clip = self.CLIP).extractDICT() for p in self.pages]
         self._all_raw_blocks = reduce(lambda x, y: x + y, [p['blocks'] for p in self._all_extract_text])
