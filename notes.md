@@ -1,3 +1,10 @@
+## 20251020
+
+It occurs to me that having multiple levels of hierarchy in output isn't that useful and is a pain, so instead I'm just outputting to OrderedDict so that one can just inference that adjacent sections may relate to each other. Oh now I remember it's because there's multiple cases of key collision if I had everything flat.
+
+## 20251019
+Font size strategy for title and section heads seems to be working, now relative since values seem to vary between WEG items for whatever reason. Annoyingly, I found an instance of the title being split across consecutive lines, so I'm going to have to have the algorithm merge is_title_line matches first thing. Will also need to compare section heads with subsequent sections to decide whether the subsequent is a subsection of the above, or a new section at the same document level. Still, I'm used to way more headaches at this stage so I'll take my wins where I can get em.
+
 ## 20251019
 
 - pymupdf4llm Markdown conversion is both agonizingly slow proportionate to number of pdf pages regardless of the size of specified subset in the pages argument, and also misses all the large text for some reason (to do with color or background maybe? ignoring opacity did not change output)

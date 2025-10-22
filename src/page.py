@@ -5,6 +5,7 @@ from functools import reduce
 from collections import deque
 from dataclasses import dataclass
 from typing import Callable, Dict
+from collections import OrderedDict
 
 from pprint import pprint
 
@@ -139,6 +140,7 @@ class CharacterizedLine:
 
 class WegItem:
     CLIP = [0, 36, 800, 760]
+
     def __init__(self, doc:pymupdf.Document, start_index:int, stop_index:int = None):
         stop_index = stop_index if stop_index is not None else doc.page_count
         self.pages = doc[start_index:stop_index]
@@ -151,7 +153,42 @@ class WegItem:
 
     def get_characterized_lines(self):
         # Seemed like the easiest way to make sure font sizes gets passed each time
-        return tuple(map(CharacterizedLine, ((l, self._font_sizes) for l in self._all_raw_lines)))
+        constructer_args_gen = ((l, self._font_sizes) for l in self._all_raw_lines)
+        return tuple(map(lambda x: CharacterizedLine(x[0], x[1]), constructer_args_gen))
+    
+    def _get_title_line_block_indices(self, characterized_lines):
+        title_indices = []
+        found_first_title = False
+        for i, l in enumerate(characterized_lines):
+            # cycle through until finding title text. Theoretically this should be first iter basically every time tho
+            if not found_first_title and not l.is_title_line:
+                continue
+            elif not found_first_title and l.is_title_line:
+                title_indices.append(i)
+                found_first_title = True
+            elif found_first_title and l.is_title_line:
+                title_indices.append(i)
+            else:
+                # Only want first contiguous block of title lines, assume anything flagged as title further on is a mistake
+                break
+
+        return title_indices
+    
+    def _process_sections(self, char_lines, section_indices, title_text):
+        pass
+
+    def to_document_dict(self):
+        char_lines = self.get_characterized_lines()
+        out = OrderedDict()
+        title_indices = self._get_title_line_block_indices(char_lines)
+        # Merge title text to a single string
+        title_text = ' '.join([char_lines[i].get_raw_text() for i in title_indices])
+
+        # Filter the tuples of enumerated CharacterizedLine by is_section_heading attribute, grab only the indices of the filtered tuples
+        section_indices = list(map(lambda x: x[0], filter(lambda y: y[1].is_section_heading, enumerate(char_lines))))
+        # Prepend the last index of title_indices because we will be operating on index ranges between section headings
+        section_indices.insert(0, title_indices[-1])
+        
 
 # t['blocks']
 # block['lines']
@@ -168,7 +205,7 @@ if __name__ == "__main__":
     for st, ed in index_pairs:
         wegitems.append(WegItem(doc, st, ed))
 
-    print()
+    pprint(wegitems[0].get_characterized_lines())
     # for i in range(1):
         # p = doc.load_page(i)
         # t = p.get_text('dict', clip = [0, 36, 800, 760])
