@@ -1,3 +1,7 @@
+## 20251028
+
+We've got output! And while, structurally, it's fairly jacked up, the extracted text itself has fewer problems than I expected. The hierarchy isn't working and text from the title block is getting repeated under title text (luckily the example has multiple lines so it's a more obvious bug). Also the Tiers attribute is getting subsumed into the attribute above it, may just do a hardcoded patch clause to fix that one honestly.
+
 ## 20251020
 
 It occurs to me that having multiple levels of hierarchy in output isn't that useful and is a pain, so instead I'm just outputting to OrderedDict so that one can just inference that adjacent sections may relate to each other. Oh now I remember it's because there's multiple cases of key collision if I had everything flat.

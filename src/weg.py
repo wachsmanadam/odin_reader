@@ -1,13 +1,11 @@
-from abc import ABC, abstractmethod
-import pypdf
-import pymupdf
-from functools import reduce
-from collections import deque
-from dataclasses import dataclass
-from typing import Callable, Dict, Sequence
-from collections import OrderedDict
+from line import CharacterizedLine, generate_attr_flatten
 
-from pprint import pprint
+import pymupdf
+
+from collections import OrderedDict, deque
+from functools import reduce
+from typing import Sequence
+import json
 
 def build_item_page_indices(doc:pymupdf.Document):
     item_indices = deque()
@@ -18,143 +16,6 @@ def build_item_page_indices(doc:pymupdf.Document):
             item_indices.append(i)
         i += 1
     return item_indices
-
-def build_heading_span_indices(spans):
-    heading_indices = deque()
-    for i, s in enumerate(spans):
-        # Strategy: Font size seems to be the only marker that can be counted on
-        if s.get('size', 0.0) >= 12.0:
-            # Note: Every word of a heading will be added individually, must group consecutives downstream
-            heading_indices.append(i)
-    return heading_indices
-
-def debug_iter_print(iter, firstline = ''):
-    print('=======')
-    print(firstline)
-    for x in iter:
-        print(x)
-    print('=======')
-
-def generate_attr_flatten(key):
-
-    def attr_flatten(x, y):
-        return x + y.get(key, [])
-    
-    return attr_flatten
-
-def flatten_to_spans(page:dict):
-    out = reduce(generate_attr_flatten('lines'), page['blocks'], [])
-    out = reduce(generate_attr_flatten('spans'), out, [])
-    return tuple(out)
-
-# @dataclass
-# class SpanFilter:
-#     key:str
-#     filter_func:Callable # span[key] -> bool
-
-#     def to_func(self):
-#         def span_filter(span:Dict):
-#             val = span.get(self.key)
-#             if val is not None and self.filter_func(val):
-#                 return True
-#             else:
-#                 return False
-#         return span_filter
-
-class CharacterizedLine:
-
-    # @staticmethod
-    # def _is_title_span(span:Dict):
-    #     span_size = span.get('size', 0)
-    #     out = span_size >= 16.0
-    #     return out
-    
-    # @staticmethod
-    # def _is_section_heading_span(span:Dict):
-    #     span_size = span.get('size', 0)
-    #     out = (span_size >= 12.0) & (span_size < 16.0)
-    #     return out
-
-    def __init__(self, raw_line:Dict, font_sizes = [8.0, 12.0, 16.0]):
-        # Uses approximate logic based on contained spans to infer function of given lineS
-        assert len(font_sizes) >= 3, "Must have at least 3 font sizes to distinguish title, section, and body"
-        self.font_sizes = sorted(font_sizes)
-        self._raw_line = raw_line
-        self._raw_text = self._gen_raw_text()
-        self._is_title_span, self._is_section_heading_span = self._build_span_funcs()
-        
-        self.is_title_line = self._check_is_title()
-        self.is_section_heading = self._check_is_section_heading()
-        self.is_attribute_start = self._check_is_attribute_start()
-        self._enforce_logical_precedence()
-        self.section_depth = self._calc_section_depth()
-
-    def _build_span_funcs(self):
-        
-        def _is_title_span(span:Dict) -> bool:
-            span_size = span.get('size', self.font_sizes[0])
-            return span_size >= self.font_sizes[-1]
-        
-        def _is_section_heading_span(span:Dict) -> bool:
-            span_size = span.get('size', self.font_sizes[0])
-            return (span_size > self.font_sizes[0]) & (span_size < self.font_sizes[-1])
-        
-        return _is_title_span, _is_section_heading_span
-
-    def _gen_raw_text(self):
-        return reduce(lambda x, y: x + y.get('text', ''), self._raw_line['spans'], '')
-    
-    def get_raw_text(self):
-        return self._raw_text
-
-    def get_key_val_split(self):
-        key_val_split = self._raw_text.split(': ', maxsplit=1)
-        if len(key_val_split) < 2:
-            key, val = key_val_split, None
-        else:
-            key, val = key_val_split
-        return key, val
-
-    def _check_is_title(self):
-        # Just check if it has largest font
-        spans = self._raw_line['spans']
-        title_sized = tuple(filter(self._is_title_span, spans))
-        return len(title_sized) > 0   
-     
-    def _check_is_section_heading(self):
-        # Just check if it has larger font but not largest
-        spans = self._raw_line['spans']
-        section_sized = tuple(filter(self._is_section_heading_span, spans))
-        return len(section_sized) > 0
-    
-    def _check_is_attribute_start(self):
-        # Just check if it has a colon
-        if ':' in self._raw_text:
-            return True
-        else:
-            return False
-        
-    def _enforce_logical_precedence(self):
-        if self.is_title_line:
-            self.is_attribute_start = False
-            self.is_section_heading = False
-        elif self.is_section_heading:
-            self.is_attribute_start = False
-        else:
-            pass
-
-    def _calc_section_depth(self):
-        if self.is_title_line or len(self.font_sizes) <= 3:
-            return 0
-        
-        max_span_size = max(tuple(s['size'] for s in self._raw_line['spans']))
-        # Only need to iterate over middle sizes
-        for i, size in enumerate(sorted(self.font_sizes[1:-1], reverse = True)):
-            if max_span_size <= size:
-                return i
-            
-        # All else fails
-        return 0
 
 class WegItem:
     CLIP = [0, 36, 800, 760]
@@ -173,7 +34,7 @@ class WegItem:
         # Seemed like the easiest way to make sure font sizes gets passed each time
         constructer_args_gen = ((l, self._font_sizes) for l in self._all_raw_lines)
         return tuple(map(lambda x: CharacterizedLine(x[0], x[1]), constructer_args_gen))
-    
+
     def blocks_to_text(self):
         # Mostly added for debugging
         block_text = []
@@ -186,7 +47,7 @@ class WegItem:
                 line_text.append(''.join(span_text))
             block_text.append(' '.join(line_text))
         return block_text
-    
+
     def _get_title_line_block_indices(self, characterized_lines:Sequence[CharacterizedLine]):
         title_indices = []
         found_first_title = False
@@ -204,7 +65,7 @@ class WegItem:
                 break
 
         return title_indices
-    
+
     def _organize_sections(self, char_lines:Sequence[CharacterizedLine], section_indices:Sequence[int]):
         section_heading_blocks = []
 
@@ -218,7 +79,7 @@ class WegItem:
             else:
                 section_heading_blocks.append(section_heading_block)
                 section_heading_block = [idx,]
-            
+
             prev_idx = idx
 
         section_content_ranges = [(x[-1], y[0]) for x, y in zip(section_heading_blocks[0:-1], section_heading_blocks[1::])]
@@ -242,15 +103,16 @@ class WegItem:
         # Making it optional solely for the benefit of using this on title block tbh
         if splittable_lines is None:
             splittable_lines = tuple(filter(lambda x: x[1][1] is not None, enumerate(map(lambda y: y.get_key_val_split(), section_lines_slice))))
+            splittable_indices = list(map(lambda x: x[0], splittable_lines))
         else:
             splittable_indices = list(map(lambda x: x[0], splittable_lines))
         # Ensure last bit always extends to the end of the slice
         if splittable_indices[-1] != len(section_lines_slice) - 1:
-            splittable_lines.append(len(section_lines_slice))
+            splittable_indices.append(len(section_lines_slice))
 
         for chunk_start, chunk_end in zip(splittable_indices[0:-1], splittable_indices[1::]):
             key, start_text = section_lines_slice[chunk_start].get_key_val_split()
-            remaining_text = ' '.join(section_lines_slice[chunk_start+1:chunk_end])
+            remaining_text = ' '.join(map(lambda x: x.get_raw_text(), section_lines_slice[chunk_start+1:chunk_end]))
             if content_dict.get(key) is None:
                 content_dict[key] = start_text + ' ' + remaining_text
             else:
@@ -258,7 +120,7 @@ class WegItem:
                 error_txt = error_txt + f'\nExisting key_val: {key}:{content_dict[key]}'
                 error_txt = error_txt + f'\nAttempted key_val: {key}:{start_text + ' ' + remaining_text}'
                 raise KeyError(error_txt)
-        
+
         return content_dict
 
     def _process_section_content(self, section_lines_slice:Sequence[CharacterizedLine]):
@@ -277,17 +139,11 @@ class WegItem:
         out['title'] = title_text
 
         root_start, root_end = section_indices[0], section_indices[1]
-        # Below title is always WEG Location, Tier, etc. so this doesn't need to be as robust
-        for l in char_lines[root_start+1:root_end]:
-            try:
-                key, val = l.get_key_val_split()
-                out[key] = val
-            except ValueError:
-                # key = l._raw_text.split(': ', maxsplit=1)
-                out[key] = None
-        
+        title_content = self._process_section_content(char_lines[root_start+1:root_end])
+        out.update(title_content)
+
         section_tups = self._organize_sections(char_lines, section_indices)
-        
+
         current_section_dict = out
         current_depth = 0
         for section_title_block_idxs, (content_start_idx, content_end_idx) in section_tups:
@@ -298,9 +154,12 @@ class WegItem:
 
             section_title = ' '.join(map(lambda x: char_lines[x].get_raw_text(), section_title_block_idxs))
             section_content = self._process_section_content(char_lines[content_start_idx:content_end_idx])
+            current_section_dict[section_title] = section_content
 
             current_section_dict = section_content
             current_depth = section_depth
+
+        return out
 
     def to_document_dict(self):
         char_lines = self.get_characterized_lines()
@@ -316,8 +175,8 @@ class WegItem:
 
         out = self._process_sections(char_lines, section_indices, title_text)
 
-# t['blocks']
-# block['lines']
+        return out
+    
 if __name__ == "__main__":
     from pathlib import Path
 
@@ -331,31 +190,7 @@ if __name__ == "__main__":
     for st, ed in index_pairs:
         wegitems.append(WegItem(doc, st, ed))
 
-    wegitems[0].to_document_dict()
-    # for i in range(1):
-        # p = doc.load_page(i)
-        # t = p.get_text('dict', clip = [0, 36, 800, 760])
-        # all_spans = flatten_to_spans(t)
-
-        # sizes = set()
-        # flags = set()
-        # charflags = set()
-        # colors = set()
-        # fonts = set()
-        # alphas = set()
-        # for s in all_spans:
-        #     sizes.add(s.get('size', -1))
-        #     flags.add(s.get('flags', -1))
-        #     charflags.add(s.get('char_flags', -1))
-        #     colors.add(s.get('color', -1))
-        #     fonts.add(s.get('font', ''))
-        #     alphas.add(s.get('alpha', -1))
-
-        # debug_iter_print(sorted(sizes), 'Sizes')
-        # debug_iter_print(sorted(flags), 'Flags')
-        # debug_iter_print(sorted(charflags), 'Char Flags')
-        # debug_iter_print(sorted(colors), 'Colors')
-        # debug_iter_print(sorted(fonts), 'Fonts')
-        # debug_iter_print(sorted(alphas), 'Opacities')
-
-        # pprint(tuple(filter(lambda x: x.get('size', 0.0) > 8.0, all_spans)))
+    test_out = wegitems[0].to_document_dict()
+    
+    with open('out/output_example_20251028_1.json', 'w') as f:
+        f.write(json.dumps(test_out))
