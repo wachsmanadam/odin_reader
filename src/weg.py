@@ -1,4 +1,5 @@
-from line import CharacterizedLine, generate_attr_flatten
+from line import CharacterizedLine
+from util import generate_attr_flatten
 
 import pymupdf
 
@@ -107,7 +108,7 @@ class WegItem:
         else:
             splittable_indices = list(map(lambda x: x[0], splittable_lines))
         # Ensure last bit always extends to the end of the slice
-        if splittable_indices[-1] != len(section_lines_slice) - 1:
+        if splittable_indices[-1] != len(section_lines_slice):
             splittable_indices.append(len(section_lines_slice))
 
         for chunk_start, chunk_end in zip(splittable_indices[0:-1], splittable_indices[1::]):
@@ -142,7 +143,7 @@ class WegItem:
         title_content = self._process_section_content(char_lines[root_start+1:root_end])
         out.update(title_content)
 
-        section_tups = self._organize_sections(char_lines, section_indices)
+        section_tups = self._organize_sections(char_lines, section_indices[1::])
 
         current_section_dict = out
         current_depth = 0
@@ -192,5 +193,5 @@ if __name__ == "__main__":
 
     test_out = wegitems[0].to_document_dict()
     
-    with open('out/output_example_20251028_1.json', 'w') as f:
+    with open('out/output_example_20251105_1.json', 'w') as f:
         f.write(json.dumps(test_out))
